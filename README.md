@@ -1,62 +1,4 @@
-# Issue H-1: `permit` signatures can be replayed if approval is revoked during valid timestamp 
-
-Source: https://github.com/sherlock-audit/2023-04-ajna-judging/issues/46 
-
-## Found by 
-ctf\_sec, stopthecap
-## Summary
-permit signatures can be replayed if approval is revoked during valid timestamp
-
-## Vulnerability Detail
-
-When using the `permit` function in the `PermitERC721` contract, there is a flaw when a signature can be replayed to steal NFTs from the owner. 
-
-The attack vector opens when an owner (Bob) let's say of NFT id `1` signs a permit for address `0x01`  with whatever deadline that is not `block.timestamp`. If Bob revokes the approval for `0x01`, meanwhile the timestamp still holds:
-```@solidity
-if (block.timestamp > deadline_) revert PermitExpired();
-```
-
-the signature will be able to be replayed by anyone, most likely `0x01` to approve the spending of the token again.
-
-This happens because the `nonce` that they use to generate the `digest` : 
-
-https://github.com/sherlock-audit/2023-04-ajna/blob/main/ajna-core/src/base/PermitERC721.sol#L147
-
-is only updated if the token is actually transferred, enabling to replay the signature if the approval is revoked.
-
- 
-## Impact
-
-Steal an NFT from a previous canceled approval
-
-## Code Snippet
-https://github.com/sherlock-audit/2023-04-ajna/blob/main/ajna-core/src/base/PermitERC721.sol#L133-L157
-
-https://github.com/sherlock-audit/2023-04-ajna/blob/main/ajna-core/src/base/PermitERC721.sol#L269
-
-https://github.com/sherlock-audit/2023-04-ajna/blob/main/ajna-core/src/base/PermitERC721.sol#L147
-## Tool used
-
-Manual Review
-
-## Recommendation
-Increment the `nonce` on approvals too, not just on transfers. It should be a new nonce for every call to permit.
-
-
-
-## Discussion
-
-**grandizzy**
-
-https://github.com/ajna-finance/contracts/pull/906
-
-**dmitriia**
-
-> [ajna-finance/contracts#906](https://github.com/ajna-finance/contracts/pull/906)
-
-Looks ok
-
-# Issue H-2: Pool's kickWithDeposit misses liquidation debt check 
+# Issue H-1: Pool's kickWithDeposit misses liquidation debt check 
 
 Source: https://github.com/sherlock-audit/2023-04-ajna-judging/issues/82 
 
@@ -230,7 +172,7 @@ https://github.com/ajna-finance/contracts/pull/894
 
 Looks ok, `lenderKick()` (renamed `kickWithDeposit()`) no longer removes deposit, obtaining bond funds directly from the sender, so no liquidation debt check is now needed.
 
-# Issue H-3: kickWithDeposit removes the deposit without HTP pool state check 
+# Issue H-2: kickWithDeposit removes the deposit without HTP pool state check 
 
 Source: https://github.com/sherlock-audit/2023-04-ajna-judging/issues/86 
 
@@ -383,7 +325,7 @@ https://github.com/ajna-finance/contracts/pull/894
 
 Looks ok, `lenderKick()` no longer removes deposit, obtaining bond funds directly from the sender, so HTP check now isn't needed.
 
-# Issue H-4: moveQuoteToken updates pool state using intermediary LUP, biasing pool's interest rate calculations 
+# Issue H-3: moveQuoteToken updates pool state using intermediary LUP, biasing pool's interest rate calculations 
 
 Source: https://github.com/sherlock-audit/2023-04-ajna-judging/issues/87 
 
@@ -571,7 +513,7 @@ https://github.com/ajna-finance/contracts/pull/891
 
 Fix looks ok, final LUP is now used.
 
-# Issue H-5: Settlement can be called when auction period isn't concluded, allowing HPB depositors to game bad debt settlements 
+# Issue H-4: Settlement can be called when auction period isn't concluded, allowing HPB depositors to game bad debt settlements 
 
 Source: https://github.com/sherlock-audit/2023-04-ajna-judging/issues/106 
 
@@ -681,7 +623,7 @@ https://github.com/ajna-finance/contracts/pull/902
 
 Looks ok
 
-# Issue H-6: LUP is not recalculated after adding kicking penalty to pool's debt, so kick() updates the pool state with an outdated LUP 
+# Issue H-5: LUP is not recalculated after adding kicking penalty to pool's debt, so kick() updates the pool state with an outdated LUP 
 
 Source: https://github.com/sherlock-audit/2023-04-ajna-judging/issues/107 
 
@@ -866,7 +808,7 @@ https://github.com/ajna-finance/contracts/pull/894/files#diff-54056532b4b7aac894
 
 Fix looks good, `_kick()` is the last operation in `kick()` and `lenderKick()` (which is the new version of `kickWithDeposit()`), and LUP is calculated in `_kick()` after all the changes off final structures.
 
-# Issue H-7: Debt write off can be prohibited by HPB depositor by continuously allocating settlement blocking dust deposits in the higher buckets 
+# Issue H-6: Debt write off can be prohibited by HPB depositor by continuously allocating settlement blocking dust deposits in the higher buckets 
 
 Source: https://github.com/sherlock-audit/2023-04-ajna-judging/issues/110 
 
@@ -1194,60 +1136,18 @@ https://github.com/ajna-finance/contracts/blob/94be5c24dc448a9a0e914036450ac57b0
 
 As adding deposits above auction price is generally harmful for depositors (they will be a subject to immediate arbitrage), this will also shield against such uninformed user behavior. 
 
-# Issue M-1: PositionManager & PermitERC721 do not comply with EIP-4494 
-
-Source: https://github.com/sherlock-audit/2023-04-ajna-judging/issues/31 
-
-## Found by 
-Bauchibred
-## Summary
-
-The [Scope Q&A](https://github.com/sherlock-audit/2023-04-ajna#q-is-the-codecontract-expected-to-comply-with-any-eips-are-there-specific-assumptions-around-adhering-to-those-eips-that-watsons-should-be-aware-of) explicitly stated an expectation for the contract/code under inspection to comply with EIP-4494. However, the `PermitERC721` and `PositionManager` contracts do not satisfy the requirements of the EIP-4494 standard. Specifically, they lack the implementation of the IERC165 interface and do not indicate support for the 0x5604e225 interface. These discrepancies, mark the contracts as non-compliant with the EIP-4494 standard, which could lead to potential interoperability issues.
-
-## Vulnerability Detail
-
-The [PermitERC721](https://github.com/sherlock-audit/2023-04-ajna/blob/e2439305cc093204a0d927aac19d898f4a0edb3d/ajna-core/src/base/PermitERC721.sol#L1-L50) and [PositionManager](https://github.com/sherlock-audit/2023-04-ajna/blob/e2439305cc093204a0d927aac19d898f4a0edb3d/ajna-core/src/PositionManager.sol#L1-L40) contracts have not been implemented according to the specifications of the [EIP-4494](https://eips.ethereum.org/EIPS/eip-4494) standard. They lack the crucial implementation of the IERC165 interface and do not support the 0x5604e225 interface, both of which are mandatory according to the EIP-4494 standard... quoting the EIP:
-_This EIP requires EIP-165. EIP165 is already required in ERC-721, but is further necessary here in order to register the interface of this EIP. Doing so will allow easy verification if an NFT contract has implemented this EIP or not, enabling them to interact accordingly. The interface of this EIP (as defined in EIP-165) is 0x5604e225. Contracts implementing this EIP MUST have the supportsInterface function return true when called with 0x5604e225._
-
-## Impact
-
-The absence of the IERC165 implementation and lack of support for the 0x5604e225 interface in accordance with the EIP-4494 standard have several potential implications:
-
-1. The `PositionManager` & `PermitERC721` contracts **do not comply with the EIP-4494 standard**.
-2. This discrepancy could hamper the contracts' interoperability with other systems and smart contracts, as third-party contracts would be unable to identify their adherence to the `EIP-4494` standard.
-
-## Code Snippet
-
-[PermitERC721](https://github.com/sherlock-audit/2023-04-ajna/blob/e2439305cc093204a0d927aac19d898f4a0edb3d/ajna-core/src/base/PermitERC721.sol#L1-L50) and [PositionManager](https://github.com/sherlock-audit/2023-04-ajna/blob/e2439305cc093204a0d927aac19d898f4a0edb3d/ajna-core/src/PositionManager.sol#L1-L40)
-
-## Tool used
-
-Manual Audit
-
-## Recommendation
-
-To fully comply with the EIP-4494 standard, both the `PermitERC721` and `PositionManager` contracts must implement the IERC165 interface and declare their support for the 0x5604e225 interface. This necessary adjustment will resolve the non-compliance and ensure smooth interoperability with other systems and smart contracts.
-
-
-
-## Discussion
-
-**grandizzy**
-
-https://github.com/ajna-finance/contracts/pull/907
-
 **dmitriia**
 
-> [ajna-finance/contracts#907](https://github.com/ajna-finance/contracts/pull/907)
+> PR to add same for move quote token [ajna-finance/contracts#919](https://github.com/ajna-finance/contracts/pull/919)
 
 Looks ok
 
-# Issue M-2: Lenders lose interests and pay deposit fees due to no slippage control 
+# Issue M-1: Lenders lose interests and pay deposit fees due to no slippage control 
 
 Source: https://github.com/sherlock-audit/2023-04-ajna-judging/issues/72 
 
 ## Found by 
-Bauchibred, branch\_indigo
+branch\_indigo
 ## Summary
 When a lender deposits quote tokens below the minimum of LUP(Lowest Utilization Price) and HTP(Highest Threshold Price), the deposits will not earn interest and will also be charged deposit fees, according to [docs](https://www.ajna.finance/pdf/Ajna%20Protocol%20Whitepaper_03-24-2023.pdf). When a lender deposits to a bucket, they are vulnerable to pool LUP slippage which might cause them to lose funds due to fee charges against their will. 
 ## Vulnerability Detail
@@ -1374,7 +1274,69 @@ Beside suggested change there are 2 additional updates
 
 Looks ok, the above logic now added.
 
-# Issue M-3: Due to excessive HTP check moveQuoteToken can be unavailable for big deposits 
+**ctf-sec**
+
+Escalate for 10 USDC.
+
+As the sponsor said
+
+> We think this should be a low. Although not explicitly stated that this can happen in docs it is assumed based off of implementation. We were aware, not concerned.
+
+this is more like a feature request, not bug
+
+**sherlock-admin**
+
+ > Escalate for 10 USDC.
+> 
+> As the sponsor said
+> 
+> > We think this should be a low. Although not explicitly stated that this can happen in docs it is assumed based off of implementation. We were aware, not concerned.
+> 
+> this is more like a feature request, not bug
+
+You've created a valid escalation for 10 USDC!
+
+To remove the escalation from consideration: Delete your comment.
+
+You may delete or edit your escalation comment anytime before the 48-hour escalation window closes. After that, the escalation becomes final.
+
+**bzpassersby**
+
+I think this issue is a valid medium. It points to a possible scenario where a lender has to pay fees and lose interest against their will due to no slippage protection, which can be exploited through MEV attack. Because of the scenario of lenders losing funds against their intention, it should be medium.
+
+Due to the fact that slippage can be exploited to cause users to lose funds, this should be considered a vulnerability or bug.
+
+**0xffff11**
+
+I disagree with the escalation in this case. I think it should be a medium. Despite being a design decision, allows users to be exposed to high slippage on behalf of their decision. 
+
+**dmitriia**
+
+Looks like valid medium to me, the probability of the material impact can be said to be medium, so is the impact itself.
+
+**MLON33**
+
+> > implemented with [ajna-finance/contracts#918](https://github.com/ajna-finance/contracts/pull/918)
+> 
+> Looks ok, the above logic now added.
+
+Moving sign-off by @dmitriia here for clarity.
+
+**hrishibhat**
+
+Result:
+Medium
+Has duplicates
+Considering a valid medium based on the above comments
+
+**sherlock-admin2**
+
+Escalations have been resolved successfully!
+
+Escalation status:
+- [ctf-sec](https://github.com/sherlock-audit/2023-04-ajna-judging/issues/72/#issuecomment-1616656759): rejected
+
+# Issue M-2: Due to excessive HTP check moveQuoteToken can be unavailable for big deposits 
 
 Source: https://github.com/sherlock-audit/2023-04-ajna-judging/issues/84 
 
@@ -1521,7 +1483,7 @@ https://github.com/ajna-finance/contracts/blob/0332f341856e1efe4da8bb675886c8cfb
         if (vars.toBucketPrice > lup_) lup_ = Deposits.getLup(deposits_, poolState_.debt);
 ```
 
-# Issue M-4: Limit index isn't checked in repayDebt, so user control is void 
+# Issue M-3: Limit index isn't checked in repayDebt, so user control is void 
 
 Source: https://github.com/sherlock-audit/2023-04-ajna-judging/issues/85 
 
@@ -1692,7 +1654,11 @@ in that case we early revert with InvalidAmount at L288 https://github.com/ajna-
 ```
 so later check not needed
 
-# Issue M-5: LenderActions's moveQuoteToken can create a total debt undercoverage 
+**dmitriia**
+
+Looks ok
+
+# Issue M-4: LenderActions's moveQuoteToken can create a total debt undercoverage 
 
 Source: https://github.com/sherlock-audit/2023-04-ajna-judging/issues/88 
 
@@ -1806,72 +1772,7 @@ https://github.com/ajna-finance/contracts/pull/901
 
 Looks ok
 
-# Issue M-6: Mathematical Discrepancies in equations used for calculating Interest Rates 
-
-Source: https://github.com/sherlock-audit/2023-04-ajna-judging/issues/104 
-
-## Found by 
-Chinmay
-## Summary
-The two equations representing MAU - TU relationships that are used to check whether the Interest Rate should be decreased or Increased based on current state, are not homogenous. The implementation of these yields different values in calculations.
-
-## Vulnerability Detail
-The two equations seen at ```PoolCommons.sol:L294``` and ```L297``` are checks that allow increasing or decreasing interest rates based on the current values of ```Meaningful Actual Utilization MAU``` and ```Target Utilization TU```. The two equations are comparing same quantities mau and tu and should have same similar scaling/downscaling. Here is the code :
-
-```solidity
-        if (4 * (tu - mau102) < (((tu + mau102 - 1e18) / 1e9) ** 2) - 1e18) {
-            newInterestRate_ = Maths.wmul(poolState_.rate, INCREASE_COEFFICIENT);
-        // decrease rates if 4*(tu-mau) > 1-(tu+mau-1)^2
-        } else if (4 * (tu - mau) > 1e18 - ((tu + mau - 1e18) ** 2) / 1e18) {
-            newInterestRate_ = Maths.wmul(poolState_.rate, DECREASE_COEFFICIENT);
-        }
-
-        // bound rates between 10 bps and 50000%
-        newInterestRate_ = Maths.min(500 * 1e18, Maths.max(0.001 * 1e18, newInterestRate_));
-    }
-```
-
-We notice a difference in how they use downscaling by 1e9 or 1e18 to attain WAD(1e18) precision on both sides of the inequality.
- 
-We are interested in the term ```(tu + mau102 - 1e18) / 1e9) ** 2)```. For the increase rate check, ```(tu + mau102 - 1e18) / 1e9) ** 2)``` is used, but notice that for the decrease rate check, ```((tu + mau - 1e18) ** 2) / 1e18)``` is used instead. This discrepancy will lead to a different set of results for this expression in some cases. 
-
-When I asked the developers, why this discrepancy exists, they said ```"so the thing is that during the invariant testing, with some huge values, the first one overflowed, let me find the commit so we decided to make it allow higher values, by dividing by 1e9 and then pow 2, instead having the 1e18 at pow 2 and then / 1e18. But the else branch wasn't changed, as we hit no failure there."```
-
-They changed the first equation to deal with an overflow issue, but they did not consider changing the second one because it did not overflow. But they expected it to be mathematically the same. One of the developers said, ```"mathematically they should be the same IMO... not sure why differences, granted the else clause would be better written same way e.g. (4 * (tu - mau) > 1e18 - ((tu + mau - 1e18) / 1e9) ** 2)"```
-
-The effect of this discrepancy is that for some sets of values both these terms aren't equivalent. I plotted these two expressions here : https://www.desmos.com/calculator/cjaiyhtmob
-So the mathematical equation yields different values than was expected and what the equation should represent.
-
-## Impact
-The mathematical equation used was not the one that was intended. There is a clear discrepancy in the results of these equations and thus this is a medium severity issue because the protocol will not work as expected in some cases. 
-
-One of the developers agreed, ```"mathematically they should be the same IMO... not sure why differences, granted the else clause would be better written same way e.g. (4 * (tu - mau) > 1e18 - ((tu + mau - 1e18) / 1e9) ** 2)"```
-
-## Code Snippet
-https://github.com/sherlock-audit/2023-04-ajna/blob/e2439305cc093204a0d927aac19d898f4a0edb3d/ajna-core/src/libraries/external/PoolCommons.sol#L297
-
-## Tool used
-
-Manual Review
-
-## Recommendation
-Change Line 297 from  ```4 * (tu - mau) > 1e18 - ((tu + mau - 1e18) ** 2) / 1e18)``` to ```4 * (tu - mau) > 1e18 - ((tu + mau - 1e18) / 1e9) ** 2)```
-
-
-
-## Discussion
-
-**grandizzy**
-
-We acknowledge this is a discrepancy in our code and will be fixed in https://github.com/ajna-finance/contracts/pull/903
-
-**dmitriia**
-
-> We acknowledge this is a discrepancy in our code and will be fixed in [ajna-finance/contracts#903](https://github.com/ajna-finance/contracts/pull/903)
-
-Fix looks ok
-
-# Issue M-7: Wrong Inflator used in calculating HTP to determine accrualIndex in accrueInterest 
+# Issue M-5: Wrong Inflator used in calculating HTP to determine accrualIndex in accrueInterest 
 
 Source: https://github.com/sherlock-audit/2023-04-ajna-judging/issues/111 
 
@@ -1923,4 +1824,178 @@ Deleted duplication of #88  due to explaining a slightly different issue
 **dmitriia**
 
 Fix in PR#916 looks ok, it replaces `newInflator_` with the current `poolState_.inflator` in accrueInterest()'s `htp` calculation.
+
+# Issue M-6: KickerActions uses wrong check to prevent Kickers from using deposits below LUP for KIckWithDeposit 
+
+Source: https://github.com/sherlock-audit/2023-04-ajna-judging/issues/113 
+
+## Found by 
+Chinmay
+## Summary
+The ```kickWithDeposit``` function in ```KickerActions``` has a check to prevent users having deposits below the LUP to use those deposits for kicking loans, but this check is implemented incorrectly.
+
+## Vulnerability Detail
+The mentioned check evaluates if the ```bucketPrice``` used by the kicker is below the LUP. But the problem here is that the LUP used in this check is the new LUP that is calculated after incorporating the removal of the deposit itself and the debt changes. Thus, this check can be easily bypassed because the new LUP is bound to move lower and thus may cross past the ```bucketPrice``` used.
+
+Consider a situation :
+1. The kicker has deposits in a bucketPrice below LUP
+2. Now he calls kickWithDeposit using this deposit
+3. The new LUP is calculated after removing this deposit and adding the debt changes for kickPenalty etc. 
+4. This will make the LUP decrease and thus now LUP < bucketPrice that the user input
+
+This way this check can be bypassed. According to the developers, the check was in place to prevent kickers from using deposits below the LUP to kick loans but this is not fulfilled.
+
+
+## Impact
+This breaks protocol functionality because now anyone can deposit below LUP and use that to kick valid user loans. The ```kickWithDeposit``` function was only made to help depositors get their deposits back if some loans are blocking the withdrawl due to the LUP movement. But the current implementation allows anyone to kick those loans that were originally not eligible for liquidation. 
+
+This is a high severity issue because it griefs users off their funds by liquidating them, even when they were not eligible for liquidation.
+
+## Code Snippet
+https://github.com/sherlock-audit/2023-04-ajna/blob/e2439305cc093204a0d927aac19d898f4a0edb3d/ajna-core/src/libraries/external/KickerActions.sol#L216
+## Tool used
+
+Manual Review
+
+## Recommendation
+Refactor the code and move this check to the top of the kickWithDeposit function logic. 
+
+
+
+## Discussion
+
+**hrishibhat**
+
+Lead Watson comment: 
+> Invalid as removal deposit from the bucket below the LUP can’t make LUP move, i.e. it can’t be vars.bucketPrice < kickResult_.lup before removal from bucket, but vars.bucketPrice >= kickResult_.lup after that.
+
+**chinmay-farkya**
+
+Escalate for 10 USDC
+The lead watson's comment "removal deposit from the bucket below the LUP can’t make LUP move" is incorrect.
+
+Following up with the explanation above, see that at [KickerActions#216](https://github.com/sherlock-audit/2023-04-ajna/blob/e2439305cc093204a0d927aac19d898f4a0edb3d/ajna-core/src/libraries/external/KickerActions.sol#L216) the LUP that is used for the check has been calculated at [KickerActions#207](https://github.com/sherlock-audit/2023-04-ajna/blob/e2439305cc093204a0d927aac19d898f4a0edb3d/ajna-core/src/libraries/external/KickerActions.sol#L207). Here, the DepositState "deposits_" is the actual old state of deposits which means that kicker's deposit is still stored at whatever index it was. This deposit is actually only removed from "deposits_" at [KickerActions#223](https://github.com/sherlock-audit/2023-04-ajna/blob/e2439305cc093204a0d927aac19d898f4a0edb3d/ajna-core/src/libraries/external/KickerActions.sol#L223) and [KickerActions#241](https://github.com/sherlock-audit/2023-04-ajna/blob/e2439305cc093204a0d927aac19d898f4a0edb3d/ajna-core/src/libraries/external/KickerActions.sol#L241) which means the deposits used for kick is only removed from the "deposits_" after the check at Line 216.
+
+Now look at the values in Line 207 : the LUP calculation using "deposits_" state where the user's deposit he is going to use to kick exists, but see the second function argument : ``kickResult_.lup = Deposits.getLup(deposits_, poolState_.debt + vars.amountToDebitFromDeposit)``
+
+The LUP is being calculated as if the debt has increased by an amount, ``amountToDebitFromDeposit`` which is mirroring the removal of the deposit. But think about when the deposit index used (vars.bucketPrice) was originally below the LUP. In this case, the use of increased debt in the calculation doesn't mirror the removal of deposits.
+
+for example : 
+1. LUP = 100 and kicker uses bucket price 90 where he has 100K deposits.
+2. Now this shouldn't move the LUP but it does move the LUP in calculation at Line 207 because it uses the same old Deposit but increased Debt(by whole of the deposits used for kick) in the calculation. Since LUP is calculated by summing up the deposits from top and matching it against the debt value passed to the getLup function, this will lower the LUP. This incorrect LUP will bypass the check and allow anyone to kick loans and grief users as explained in the original submission.  This can be seen in [Deposits.getLup](https://github.com/sherlock-audit/2023-04-ajna/blob/e2439305cc093204a0d927aac19d898f4a0edb3d/ajna-core/src/libraries/internal/Deposits.sol#L417) function.
+
+Because the logic can move the LUP below despite of a deposit from below the LUP being removed, this is a valid High severity finding as explained in impact above.
+
+
+
+
+**sherlock-admin**
+
+ > Escalate for 10 USDC
+> The lead watson's comment "removal deposit from the bucket below the LUP can’t make LUP move" is incorrect.
+> 
+> Following up with the explanation above, see that at [KickerActions#216](https://github.com/sherlock-audit/2023-04-ajna/blob/e2439305cc093204a0d927aac19d898f4a0edb3d/ajna-core/src/libraries/external/KickerActions.sol#L216) the LUP that is used for the check has been calculated at [KickerActions#207](https://github.com/sherlock-audit/2023-04-ajna/blob/e2439305cc093204a0d927aac19d898f4a0edb3d/ajna-core/src/libraries/external/KickerActions.sol#L207). Here, the DepositState "deposits_" is the actual old state of deposits which means that kicker's deposit is still stored at whatever index it was. This deposit is actually only removed from "deposits_" at [KickerActions#223](https://github.com/sherlock-audit/2023-04-ajna/blob/e2439305cc093204a0d927aac19d898f4a0edb3d/ajna-core/src/libraries/external/KickerActions.sol#L223) and [KickerActions#241](https://github.com/sherlock-audit/2023-04-ajna/blob/e2439305cc093204a0d927aac19d898f4a0edb3d/ajna-core/src/libraries/external/KickerActions.sol#L241) which means the deposits used for kick is only removed from the "deposits_" after the check at Line 216.
+> 
+> Now look at the values in Line 207 : the LUP calculation using "deposits_" state where the user's deposit he is going to use to kick exists, but see the second function argument : ``kickResult_.lup = Deposits.getLup(deposits_, poolState_.debt + vars.amountToDebitFromDeposit)``
+> 
+> The LUP is being calculated as if the debt has increased by an amount, ``amountToDebitFromDeposit`` which is mirroring the removal of the deposit. But think about when the deposit index used (vars.bucketPrice) was originally below the LUP. In this case, the use of increased debt in the calculation doesn't mirror the removal of deposits.
+> 
+> for example : 
+> 1. LUP = 100 and kicker uses bucket price 90 where he has 100K deposits.
+> 2. Now this shouldn't move the LUP but it does move the LUP in calculation at Line 207 because it uses the same old Deposit but increased Debt(by whole of the deposits used for kick) in the calculation. Since LUP is calculated by summing up the deposits from top and matching it against the debt value passed to the getLup function, this will lower the LUP. This incorrect LUP will bypass the check and allow anyone to kick loans and grief users as explained in the original submission.  This can be seen in [Deposits.getLup](https://github.com/sherlock-audit/2023-04-ajna/blob/e2439305cc093204a0d927aac19d898f4a0edb3d/ajna-core/src/libraries/internal/Deposits.sol#L417) function.
+> 
+> Because the logic can move the LUP below despite of a deposit from below the LUP being removed, this is a valid High severity finding as explained in impact above.
+> 
+> 
+> 
+
+You've created a valid escalation for 10 USDC!
+
+To remove the escalation from consideration: Delete your comment.
+
+You may delete or edit your escalation comment anytime before the 48-hour escalation window closes. After that, the escalation becomes final.
+
+**dmitriia**
+
+Escalate for 10 USDC
+Despite some misunderstandings, the take that `kickResult_.lup = Deposits.getLup(deposits_, poolState_.debt + vars.amountToDebitFromDeposit)` is incorrect when `bucketPrice` is initially below LUP is a right one, i.e. the control do not filter out some `bucketPrice < initial_LUP` situations as LUP for the check isn't calculated correctly in this case.
+However, the filtering of `bucketPrice < LUP` is a more a convenience approach. There is no impact here that justify high severity, so valid medium looks the most suitable in this case.
+
+To clarify:
+
+1. "removal deposit from the bucket below the LUP can’t make LUP move" is correct all the time, this follows from the definition of LUP, which is the last utilized price, while `bucketPrice < LUP` deposits aren't utilized.
+2. The `kickResult_.lup = Deposits.getLup(deposits_, poolState_.debt + vars.amountToDebitFromDeposit)` check isn't correct exactly because of (1)
+
+**sherlock-admin**
+
+ > Escalate for 10 USDC
+> Despite some misunderstandings, the take that `kickResult_.lup = Deposits.getLup(deposits_, poolState_.debt + vars.amountToDebitFromDeposit)` is incorrect when `bucketPrice` is initially below LUP is a right one, i.e. the control do not filter out some `bucketPrice < initial_LUP` situations as LUP for the check isn't calculated correctly in this case.
+> However, the filtering of `bucketPrice < LUP` is a more a convenience approach. There is no impact here that justify high severity, so valid medium looks the most suitable in this case.
+> 
+> To clarify:
+> 
+> 1. "removal deposit from the bucket below the LUP can’t make LUP move" is correct all the time, this follows from the definition of LUP, which is the last utilized price, while `bucketPrice < LUP` deposits aren't utilized.
+> 2. The `kickResult_.lup = Deposits.getLup(deposits_, poolState_.debt + vars.amountToDebitFromDeposit)` check isn't correct exactly because of (1)
+
+You've created a valid escalation for 10 USDC!
+
+To remove the escalation from consideration: Delete your comment.
+
+You may delete or edit your escalation comment anytime before the 48-hour escalation window closes. After that, the escalation becomes final.
+
+**chinmay-farkya**
+
+I'd like to elaborate the impact to justify High severity :
+1. Firstly, this allows an attacker to intentionally deposit below the LUP and force illegal liquidations on users. Since the loan with max TP is kicked first in order, this may cause a material loss of funds for that borrower depending upon his borrowed amounts.
+2. The attacker can do this repeatedly to grief multiple users one by one. This may cause a material loss of funds for multiple users.
+3. The attacker controls the deposited amount ie. ``amountToDebitFromDeposit`` above based on how much LP he holds in that bucket. This way he can move the LUP (for the intermediate calculation) lower to any price he desires. This is because larger the  ``amountToDebitFromDeposit`` more the LUP will move. This means he can forcefully liquidate users even if they were far from underwater.
+
+
+**0xffff11**
+
+There are several points were the watson was mistaken. I really appreciate the comment from the senior exposing them. I do agree with a medium in the current landscape, but I would like a third opinion from @grandizzy 
+
+**grandizzy**
+
+Agree with @dmitriia explanation and medium severity.
+
+**chinmay-farkya**
+
+Hey @grandizzy with regards to the Senior Watson's comments, I think I have justified the severity enough in my comment [here](https://github.com/sherlock-audit/2023-04-ajna-judging/issues/113#issuecomment-1617420829)
+
+Do have a look. Won't take this further.
+
+Also, Hey @0xffff11 would like to ask for more clarification on why the points I made in the last comment above aren't fulfilling to high severity.
+
+**grandizzy**
+
+fixed with https://github.com/ajna-finance/contracts/pull/894
+
+**dmitriia**
+
+> https://github.com/sherlock-audit/2023-04-ajna/blob/e2439305cc093204a0d927aac19d898f4a0edb3d/ajna-core/src/libraries/external/KickerActions.sol#L216
+
+Looks ok, as a result of refactoring (for this and other issues of this contest combined) `kickWithDeposit()` is now `lenderKick()` that performs `if (vars.bucketPrice < Deposits.getLup(deposits_, poolState_.debt)) revert PriceBelowLUP()` check on the initial pool state. 
+
+**hrishibhat**
+
+Result:
+Medium
+Unique
+In addition to the comments above after further review and discussion of this issue, Considering this issue a valid medium based on to the following comments from the Lead Watson:
+> Depositing below LUP is definitely possible in general and is not enabled by this bug, what happens here is that LUP for kicking determined as Deposits.getLup(deposits_, poolState_.debt + vars.amountToDebitFromDeposit) is incorrect for deposits below LUP (and for them only, it is correct whenever bucket price >= LUP). This is actually an intermediary bug, I discussed it with the team early in the contest, but didn’t reported as it led to several others so the team decided to rewrite the function altogether (it’s now much lighter lenderKick()), and this requirement was initially introduced as a function separation matter, i.e. there is nothing wrong in using kicking with a bucket deposit when vars.bucketPrice < kickResult_.lup, it is just designed to handle an another case of a depositor pretending to remove the deposit and kicking as if they done that. I.e. that’s basically a helper function that can be replicated via others (withdraw, then kick).
+
+> Why it is medium: first of all kicking cannot be sniped and is always done in queue, one can kick only Loans.getMax(loans_).borrower, there is no optionality here, so if there are lots of bad borrowers the attacker will have to kick them first anyway, they can’t just reach a good one, that’s not possible, and, most importantly, kicking borrowers that aren’t supposed to be kicked is substantially unprofitable, as kicker have to post a bond, which is partially forfeited if resulting auction price (i.e. market price as market actors will participate there as long as it’s profitable) is higher than this borrower’s price. The loss of the kicker is proportional to this gap, i.e. there is a guaranteed (as long as there are other market participants) loss for the kicker is they kick healthy borrowers, and the healthier is the borrower, the bigger the loss.
+
+> So yes, an attacker can kick with this function, but it will be really costly griefing and nothing else. I.e. they will be required to post substantial bond and will lose a part of it, while borrower will not lose as they will be liquidated at market price, i.e. their position will be just closed at the current levels. I.e. nobody besides attacker will have any substantial losses, attacker will be penalized for kicking at out of the market levels, their penalty will be redistributed.
+
+> This way this can be categozed as costly griefing, so the probability of such attack is low, while damage cannot be made significant (i.e. there can be some medium damage for borrower if market is specifically illiquid, but active market is basically a precondition for oracle-less protocols, and this situation cannot be controlled by the attacker).
+
+**sherlock-admin2**
+
+Escalations have been resolved successfully!
+
+Escalation status:
+- [chinmay-farkya](https://github.com/sherlock-audit/2023-04-ajna-judging/issues/113/#issuecomment-1616731466): accepted
+- [dmitriia](https://github.com/sherlock-audit/2023-04-ajna-judging/issues/113/#issuecomment-1616937905): accepted
 
